@@ -1,4 +1,6 @@
-### [S-#] Storing the password on-chain makes it visible to anyone, and no longer private
+### [H-1] Storing the password on-chain makes it visible to anyone, and no longer private
+
+
 
 **Description:** All data stored on-chsin is visible to anyone, and can be read directly from the blockchain. Ths `PasswordStore::s_password` variable is intended to be a private varibal and only accessed through the `PasswordStore::getPassword` function, which is intended to be only called by the owner of the contract.
 
@@ -48,15 +50,79 @@ myPassword
 
 
 
-### [S-0] `PasswordStore::setPassword` has no access controls, meaning a non-owner could change the password
+
+### [H-2] `PasswordStore::setPassword` has no access controls, meaning a non-owner could change the password
 
 **Description:** The `PasswordStore::setPassword` function is set to be an `external` function, however, the natspec of the function and overall purpose of the smart contract is that `This function allows only owner to set a new password.`
 
+```javascript
+   function setPassword(string memory newPassword) external {
+        // @audit - There are no access controls
+        s_password = newPassword;
+        emit SetNetPassword();
+    }
+```
 
-**Impact:**
+**Impact:** Anyone can set/change the password of the contract, severly breaking the contract intended functionality.
 
 
-**Proof of Concept:**
+
+**Proof of Concept:** Add the following to the `PasswordStore.t.sol` test file.
+
+<details>
+<summary>Code</summary>
+
+```javascript
+function test_anyone_can_set_password(address randomAddress) public {
+        vm.assume(randomAddress != owner);
+        vm.prank(randomAddress);
+        string memory expectedPassword = "myNewPassword";
+        passwordStore.setPassword(expectedPassword);
+
+        vm.prank(owner);
+        string memory actualPassword = passwordStore.getPassword();
+        assertEq(actualPassword, expectedPassword);
+    }
+
+```
+</details>
 
 
-**Recommeded Mitigation:**
+**Recommeded Mitigation:** Add an access control conditional to the `setPassowrd` function
+
+```javascript
+
+if (msg.sender != s_owner) revert PasswordStore__NotOwner();
+
+```
+
+
+
+
+
+### [I-1] The `PasswordStore::getPassword` natspec indicates a parameter that doesn't exist, causing the natspec to be incorrect
+
+**Description:** 
+
+```javascript
+    /*
+     * @notice This allows only the owner to retrieve the password.
+     * @param newPassword The new password to set.
+     */
+    function getPassword() external view returns (string memory) {}
+```
+
+The `PasswordStore::getPassword` function signature is `getPassword()` which the natspec say it should be `getPassword(string)`.
+
+
+**Impact:** The natspec is incorrect.
+
+
+**Recommeded Mitigation:** Remove the incorrect natspec line.
+
+```diff
+- * @param newPassword The new password to set.
+```
+
+
+
